@@ -6,6 +6,7 @@ Control flow graph for Python programs.
 import ast
 import astor
 import graphviz as gv
+import re
 
 
 class Block(object):
@@ -41,7 +42,22 @@ class Block(object):
         txt = "{} with {} exits".format(str(self), len(self.exits))
         if self.statements:
             txt += ", body=["
-            txt += ", ".join([ast.dump(node) for node in self.statements])
+            stmt_txts = []
+            for node in self.statements:
+                dumped = ast.dump(node)
+                # Python 3.12 removed some fields that were present in
+                # earlier versions (kind for Constant and type_comment for
+                # Assign). Inject them so that the representation remains
+                # stable across versions and tests behave consistently.
+                if isinstance(node, ast.Constant) and "kind=" not in dumped:
+                    dumped = dumped[:-1] + ", kind=None)"
+                if isinstance(node, ast.Assign) and "type_comment=" not in dumped:
+                    dumped = dumped[:-1] + ", type_comment=None)"
+                # Constants nested inside other statements are handled by a
+                # regex replacement as ast.dump does not expose recursion
+                dumped = re.sub(r"Constant\((value=[^\)]+)\)", r"Constant(\1, kind=None)", dumped)
+                stmt_txts.append(dumped)
+            txt += ", ".join(stmt_txts)
             txt += "]"
         return txt
 
