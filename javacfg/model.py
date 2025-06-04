@@ -1,0 +1,91 @@
+"""Control flow graph classes for Java code."""
+
+class Block:
+    __slots__ = ["id", "statements", "func_calls", "predecessors", "exits"]
+
+    def __init__(self, id):
+        self.id = id
+        self.statements = []
+        self.func_calls = []
+        self.predecessors = []
+        self.exits = []
+
+    def __str__(self):
+        if self.statements:
+            return f"block:{self.id}@{self.at()}"
+        return f"empty block:{self.id}"
+
+    def __repr__(self):
+        txt = f"{str(self)} with {len(self.exits)} exits"
+        if self.statements:
+            txt += ", body=[" + ", ".join([s.type for s in self.statements]) + "]"
+        return txt
+
+    def at(self):
+        if self.statements:
+            return self.statements[0].start_point[0] + 1
+        return None
+
+    def is_empty(self):
+        return len(self.statements) == 0
+
+    def get_source(self):
+        src = ""
+        for stmt in self.statements:
+            src += stmt.text.decode() + "\n"
+        return src
+
+    def get_calls(self):
+        txt = ""
+        for func in self.func_calls:
+            txt += func + "\n"
+        return txt
+
+
+class Link:
+    __slots__ = ["source", "target", "exitcase"]
+
+    def __init__(self, source, target, exitcase=None):
+        assert isinstance(source, Block)
+        assert isinstance(target, Block)
+        self.source = source
+        self.target = target
+        self.exitcase = exitcase
+
+    def __str__(self):
+        return f"link from {self.source} to {self.target}"
+
+    def __repr__(self):
+        if self.exitcase is not None:
+            return f"{self}, with exitcase {self.exitcase}"
+        return str(self)
+
+    def get_exitcase(self):
+        return self.exitcase or ""
+
+
+class CFG:
+    def __init__(self, name, asynchr=False):
+        assert isinstance(name, str)
+        self.name = name
+        self.asynchr = asynchr
+        self.entryblock = None
+        self.finalblocks = []
+        self.functioncfgs = {}
+
+    def __str__(self):
+        return f"CFG for {self.name}"
+
+    def __iter__(self):
+        visited = set()
+        to_visit = [self.entryblock]
+        while to_visit:
+            block = to_visit.pop(0)
+            visited.add(block)
+            for exit_ in block.exits:
+                if exit_.target in visited or exit_.target in to_visit:
+                    continue
+                to_visit.append(exit_.target)
+            yield block
+        for subcfg in self.functioncfgs.values():
+            yield from subcfg
