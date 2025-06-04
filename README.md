@@ -53,3 +53,18 @@ format to use for the visualisation.
 The *build_cfg.py* script present in the */examples* folder of this repository can be used to directly generate the CFG of some 
 Python program and visualise it. To do so, simply call the script with the command `python3 build_cfg.py 
 <path_to_some_source>`.
+
+## Java Support
+
+StatiCFG also provides a minimal CFG builder for Java source files using the
+Tree-sitter parser. You can build and visualise a Java method's CFG with:
+
+```python
+from javacfg import CFGBuilder
+
+cfg = CFGBuilder().build_from_file('Example.java', './Example.java')
+cfg.build_visual('example_java_cfg.dot', 'pdf')
+```
+
+This produces a DOT file (`example_java_cfg.dot`) describing the control flow of
+the method which can be rendered with Graphviz.
