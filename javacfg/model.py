@@ -1,6 +1,5 @@
 """Control flow graph classes for Java code."""
 
-
 import graphviz as gv
 
 class Block:
@@ -35,7 +34,20 @@ class Block:
     def get_source(self):
         src = ""
         for stmt in self.statements:
-            src += stmt.text.decode() + "\n"
+
+            text = stmt.text.decode()
+            if stmt.type in (
+                "if_statement",
+                "while_statement",
+                "for_statement",
+                "enhanced_for_statement",
+                "switch_expression",
+                "switch_statement",
+            ):
+                src += text.splitlines()[0] + "\n"
+            else:
+                src += text + "\n"
+
         return src
 
     def get_calls(self):
