@@ -34,6 +34,7 @@ class Block:
     def get_source(self):
         src = ""
         for stmt in self.statements:
+
             text = stmt.text.decode()
             if stmt.type in (
                 "if_statement",
@@ -46,6 +47,7 @@ class Block:
                 src += text.splitlines()[0] + "\n"
             else:
                 src += text + "\n"
+
         return src
 
     def get_calls(self):
