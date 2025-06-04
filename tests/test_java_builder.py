@@ -25,5 +25,10 @@ class TestJavaCFG(unittest.TestCase):
         self.assertIn('return false;', sources[-1])
         self.assertEqual(cfg.entryblock, cfg.entryblock)
 
+    def test_visual(self):
+        cfg = CFGBuilder().build_from_src('isValueCode', java_sample)
+        graph = cfg._build_visual(format='dot', calls=False)
+        self.assertIn('digraph', graph.source)
+
 if __name__ == '__main__':
     unittest.main()

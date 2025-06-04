@@ -1,5 +1,8 @@
 """Control flow graph classes for Java code."""
 
+
+import graphviz as gv
+
 class Block:
     __slots__ = ["id", "statements", "func_calls", "predecessors", "exits"]
 
@@ -89,3 +92,38 @@ class CFG:
             yield block
         for subcfg in self.functioncfgs.values():
             yield from subcfg
+
+    def _visit_blocks(self, graph, block, visited=None, calls=True):
+        if visited is None:
+            visited = []
+        if block.id in visited:
+            return
+
+        nodelabel = block.get_source()
+        graph.node(str(block.id), label=nodelabel)
+        visited.append(block.id)
+
+        if calls and block.func_calls:
+            calls_node = f"{block.id}_calls"
+            calls_label = block.get_calls().strip()
+            graph.node(calls_node, label=calls_label, _attributes={"shape": "box"})
+            graph.edge(str(block.id), calls_node, label="calls", _attributes={"style": "dashed"})
+
+        for exit in block.exits:
+            self._visit_blocks(graph, exit.target, visited, calls=calls)
+            edgelabel = exit.get_exitcase().strip()
+            graph.edge(str(block.id), str(exit.target.id), label=edgelabel)
+
+    def _build_visual(self, format="pdf", calls=True):
+        graph = gv.Digraph(name="cluster" + self.name, format=format, graph_attr={"label": self.name})
+        self._visit_blocks(graph, self.entryblock, visited=[], calls=calls)
+
+        for subcfg in self.functioncfgs:
+            subgraph = self.functioncfgs[subcfg]._build_visual(format=format, calls=calls)
+            graph.subgraph(subgraph)
+
+        return graph
+
+    def build_visual(self, filepath, format, calls=True, show=True):
+        graph = self._build_visual(format, calls)
+        graph.render(filepath, view=show)

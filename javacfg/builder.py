@@ -38,6 +38,11 @@ class CFGBuilder:
         tree = self.parser.parse(bytes(src, 'utf8'))
         return self.build(name, tree, src)
 
+    def build_from_file(self, name, filepath):
+        with open(filepath, 'r') as src_file:
+            src = src_file.read()
+        return self.build_from_src(name, src)
+
     def build(self, name, tree, src):
         self.src = src
         self.cfg = CFG(name)
