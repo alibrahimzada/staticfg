@@ -9,7 +9,18 @@ class Block:
     def __init__(self, id):
         self.id = id
         self.statements = []
-        self.func_calls = []
+            text = stmt.text.decode()
+            if stmt.type in (
+                "if_statement",
+                "while_statement",
+                "for_statement",
+                "enhanced_for_statement",
+                "switch_expression",
+                "switch_statement",
+            ):
+                src += text.splitlines()[0] + "\n"
+            else:
+                src += text + "\n"
         self.predecessors = []
         self.exits = []
 
