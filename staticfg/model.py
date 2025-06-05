@@ -9,6 +9,19 @@ import graphviz as gv
 import re
 
 
+def _to_source(node):
+    """Return source code for *node*, falling back to ast.unparse."""
+    try:
+        return astor.to_source(node)
+    except Exception:
+        if hasattr(ast, "unparse"):
+            txt = ast.unparse(node)
+            if not txt.endswith("\n"):
+                txt += "\n"
+            return txt
+        raise
+
+
 class Block(object):
     """
     Basic block in a control flow graph.
@@ -88,13 +101,12 @@ class Block(object):
         """
         src = ""
         for statement in self.statements:
-            if type(statement) in [ast.If, ast.For, ast.While]:
-                src += (astor.to_source(statement)).split('\n')[0] + "\n"
-            elif type(statement) == ast.FunctionDef or\
-                 type(statement) == ast.AsyncFunctionDef:
-                src += (astor.to_source(statement)).split('\n')[0] + "...\n"
+            if type(statement) in [ast.If, ast.For, ast.While, ast.Match]:
+                src += (_to_source(statement)).split('\n')[0] + "\n"
+            elif type(statement) in (ast.FunctionDef, ast.AsyncFunctionDef):
+                src += (_to_source(statement)).split('\n')[0] + "...\n"
             else:
-                src += astor.to_source(statement)
+                src += _to_source(statement)
         return src
 
     def get_calls(self):
@@ -150,7 +162,7 @@ class Link(object):
             A string containing the source code.
         """
         if self.exitcase:
-            return astor.to_source(self.exitcase)
+            return _to_source(self.exitcase)
         return ""
 
 
