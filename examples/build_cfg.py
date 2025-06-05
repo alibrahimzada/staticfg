@@ -1,7 +1,7 @@
 #!usr/bin/python3
 
 import argparse
-from staticfg import CFGBuilder
+from python import CFGBuilder
 
 parser = argparse.ArgumentParser(description='Generate the control flow graph\
  of a Python program')

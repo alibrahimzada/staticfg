@@ -1,5 +1,5 @@
 import unittest
-from javacfg.builder import CFGBuilder
+from java.builder import CFGBuilder
 
 java_sample = """
 public static boolean isValueCode(final char ch) {

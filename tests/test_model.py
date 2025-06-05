@@ -1,7 +1,7 @@
 import unittest
 import ast
-from staticfg.model import *
-from staticfg.builder import CFGBuilder, is_py38_or_higher
+from python.model import *
+from python.builder import CFGBuilder, is_py38_or_higher
 
 
 class TestBlock(unittest.TestCase):

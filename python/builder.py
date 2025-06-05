@@ -390,6 +390,23 @@ class CFGBuilder(ast.NodeVisitor):
         self.after_loop_block_stack.pop()
         self.curr_loop_guard_stack.pop()
 
+    def visit_Match(self, node):
+        self.add_statement(self.current_block, node)
+        after_match = self.new_block()
+        check_block = self.current_block
+        for i, case in enumerate(node.cases):
+            case_block = self.new_block()
+            self.add_exit(check_block, case_block)
+            next_check = self.new_block() if i < len(node.cases) - 1 else after_match
+            self.add_exit(check_block, next_check)
+            self.current_block = case_block
+            for child in case.body:
+                self.visit(child)
+            if not self.current_block.exits:
+                self.add_exit(self.current_block, after_match)
+            check_block = next_check
+        self.current_block = after_match
+
     def visit_For(self, node):
         loop_guard = self.new_loopguard()
         self.current_block = loop_guard
