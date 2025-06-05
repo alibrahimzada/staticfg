@@ -6,6 +6,7 @@ from tree_sitter_languages import get_parser
 class CFGBuilder:
     def __init__(self, separate=False):
         self.after_loop_block_stack = []
+        self.after_switch_block_stack = []
         self.curr_loop_guard_stack = []
         self.current_block = None
         self.separate_node_blocks = separate
@@ -209,13 +210,45 @@ class CFGBuilder:
 
     visit_enhanced_for_statement = visit_for_statement
 
+    def visit_switch_expression(self, node):
+        self.add_statement(self.current_block, node)
+        after_switch = self.new_block()
+        self.after_switch_block_stack.append(after_switch)
+        body = node.child_by_field_name('body')
+        groups = [c for c in body.named_children if c.type == 'switch_block_statement_group']
+        dispatch = self.current_block
+        for group in groups:
+            case_block = self.new_block()
+            label = None
+            for child in group.named_children:
+                if child.type == 'switch_label' and label is None:
+                    label = self.get_text(child)
+                else:
+                    break
+            self.add_exit(dispatch, case_block, label)
+            next_dispatch = self.new_block()
+            self.add_exit(dispatch, next_dispatch)
+            self.current_block = case_block
+            for child in group.named_children:
+                if child.type != 'switch_label':
+                    self.visit(child)
+            if not self.current_block.exits:
+                self.add_exit(self.current_block, after_switch)
+            dispatch = next_dispatch
+        self.current_block = after_switch
+        self.after_switch_block_stack.pop()
+
+    visit_switch_statement = visit_switch_expression
+
     def visit_return_statement(self, node):
         self.add_statement(self.current_block, node)
         self.cfg.finalblocks.append(self.current_block)
         self.current_block = self.new_block()
 
     def visit_break_statement(self, node):
-        if self.after_loop_block_stack:
+        if self.after_switch_block_stack:
+            self.add_exit(self.current_block, self.after_switch_block_stack[-1])
+        elif self.after_loop_block_stack:
             self.add_exit(self.current_block, self.after_loop_block_stack[-1])
 
     def visit_continue_statement(self, node):
