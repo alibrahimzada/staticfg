@@ -211,27 +211,6 @@ class DFGBuilder:
     # ------------------------------------------------------------------
     # tree-sitter based implementation
     # ------------------------------------------------------------------
-    def build(self, name: str, tree, src: str, params: List[str] = None) -> DFG:
-        self.nodes = []
-        self.current_cond = None
-        if params:
-            for p in params:
-                self.add_node(p)
-
-        self.src = src
-        root = tree.root_node
-        method = None
-        for child in root.named_children:
-            if child.type == "method_declaration":
-                method = child
-                break
-
-        body = method.child_by_field_name("body") if method else root
-        if body.type == "block":
-            self.visit_block(body)
-        else:
-            self.visit(body)
-        return DFG(name, self.nodes)
 
     def build_from_src(self, name: str, src: str) -> DFG:
         tree = self.parse(src)
