@@ -142,7 +142,28 @@ class CFGBuilder(ast.NodeVisitor):
         """
         with open(filepath, 'r') as src_file:
             src = src_file.read()
-            return self.build_from_src(name, src)
+        cfg = self.build_from_src(name, src)
+        # Automatically compute data flow paths and write them alongside the CFG
+        try:
+            from .dfg_builder import DFGBuilder
+            tree = ast.parse(src, mode='exec')
+            # Paths for module level
+            dfg = DFGBuilder(cfg)
+            dfg.write_paths(f"{name}_dfg.txt")
+            # Paths for each function
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    sub_cfg = cfg.functioncfgs.get(node.name)
+                    if sub_cfg:
+                        params = [(arg.arg, arg.lineno) for arg in node.args.args]
+                        param_names = [p[0] for p in params]
+                        dfg = DFGBuilder(sub_cfg, params, names=param_names)
+                        dfg.write_paths(
+                            f"{name}_dfg.txt", mode='a', header=f"Function {node.name}"
+                        )
+        except Exception:
+            pass
+        return cfg
 
     # ---------- Graph management methods ---------- #
     def new_block(self):
