@@ -114,7 +114,7 @@ class CFGBuilder(ast.NodeVisitor):
         self.clean_cfg(self.cfg.entryblock)
         return self.cfg
 
-    def build_from_src(self, name, src):
+    def build_from_src(self, name, src, write_dfg=True):
         """
         Build a CFG from some Python source code.
 
@@ -126,7 +126,10 @@ class CFGBuilder(ast.NodeVisitor):
             The CFG produced from the source code.
         """
         tree = ast.parse(src, mode='exec')
-        return self.build(name, tree)
+        cfg = self.build(name, tree)
+        if write_dfg:
+            self._write_dfg(name, src, cfg)
+        return cfg
 
     def build_from_file(self, name, filepath):
         """
@@ -142,7 +145,32 @@ class CFGBuilder(ast.NodeVisitor):
         """
         with open(filepath, 'r') as src_file:
             src = src_file.read()
-            return self.build_from_src(name, src)
+        cfg = self.build_from_src(name, src, write_dfg=False)
+        self._write_dfg(name, src, cfg)
+        return cfg
+
+    def _write_dfg(self, name, src, cfg):
+        """Helper to compute and write data flow paths for a module and its
+        functions."""
+        try:
+            from .dfg_builder import DFGBuilder
+            tree = ast.parse(src, mode='exec')
+
+            dfg = DFGBuilder(cfg)
+            dfg.write_paths(f"{name}_dfg.txt")
+
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef):
+                    sub_cfg = cfg.functioncfgs.get(node.name)
+                    if sub_cfg:
+                        params = [(arg.arg, arg.lineno) for arg in node.args.args]
+                        param_names = [p[0] for p in params]
+                        func_dfg = DFGBuilder(sub_cfg, params, names=param_names)
+                        func_dfg.write_paths(
+                            f"{name}_dfg.txt", mode='a', header=f"Function {node.name}"
+                        )
+        except Exception:
+            pass
 
     # ---------- Graph management methods ---------- #
     def new_block(self):
