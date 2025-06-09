@@ -22,7 +22,6 @@ def _var_occurrences(node: ast.AST) -> List[Tuple[str, int]]:
     visitor.visit(node)
     return visitor.occurrences
 
-
 def _stmt_occurrences(stmt: ast.AST) -> List[Tuple[str, int]]:
     """Return occurrences for a single statement without descending into child statements."""
     if isinstance(stmt, ast.If):
