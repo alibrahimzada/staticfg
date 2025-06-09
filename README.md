@@ -47,6 +47,10 @@ visualised with:
 cfg.build_visual('exampleCFG', 'pdf')
 ```
 
+`build_from_file` also writes a text file (`example.py_dfg.txt`) describing the
+data flow paths through the program. Each path is a sequence of variable
+occurrences like `(x, 1) -> (x, 2)`.
+
 The first paramter of `build_visual` is the desired name for the DOT file produced by the method, and the second one is the
 format to use for the visualisation.
 

@@ -50,12 +50,6 @@ class DFGBuilder:
         self.start_occurrences = start_occurrences or []
         self.names = set(names) if names is not None else None
 
-    """Simple data flow path builder for Python CFGs."""
-
-    def __init__(self, cfg, start_occurrences=None):
-        self.cfg = cfg
-        self.start_occurrences = start_occurrences or []
-
     def _block_occurrences(self, block) -> List[Tuple[str, int]]:
         occs: List[Tuple[str, int]] = []
         for stmt in block.statements:
