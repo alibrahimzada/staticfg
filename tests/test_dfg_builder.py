@@ -44,8 +44,9 @@ class TestDFGBuilder(unittest.TestCase):
     def test_java_dfg(self):
         dfg = JDFGBuilder().build_from_src("foo", sample_java)
         names = [n.name for n in dfg.nodes]
+        self.assertIn("x", names)
         self.assertIn("x > 0", names)
-        self.assertIn("return \"Positive\";", names)
+        self.assertIn('"Positive"', names)
         graph = dfg._build_visual(format="dot")
         self.assertIn("digraph", graph.source)
 

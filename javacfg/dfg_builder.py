@@ -41,37 +41,60 @@ class DFGBuilder:
     def add_node(self, name: str, deps=None):
         self.nodes.append(DFGNode(name, deps or []))
 
-    def build(self, name: str, statements: List[str]) -> DFG:
+    def build(self, name: str, statements: List[str], params: List[str] = None) -> DFG:
         self.nodes = []
         self.current_cond = None
+        # Add parameter nodes similar to the Python DFG builder
+        if params:
+            for param in params:
+                self.add_node(param)
         for stmt in statements:
             stmt = stmt.strip()
             if stmt.startswith('if') and '(' in stmt:
-                cond = stmt[stmt.find('(')+1:stmt.rfind(')')]
-                vars_ = re.findall(r'[A-Za-z_][A-Za-z0-9_]*', cond)
+                cond = stmt[stmt.find('(') + 1: stmt.rfind(')')]
+                vars_ = list(dict.fromkeys(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', cond)))
                 self.add_node(cond, vars_)
                 self.current_cond = cond
             elif stmt.startswith('else'):
                 if self.current_cond:
                     neg = f'not ({self.current_cond})'
-                    vars_ = re.findall(r'[A-Za-z_][A-Za-z0-9_]*', self.current_cond)
+                    vars_ = list(dict.fromkeys(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', self.current_cond)))
                     self.add_node(neg, vars_)
                     self.current_cond = neg
                 else:
                     self.current_cond = None
             elif stmt.startswith('return'):
-                self.add_node(stmt, [self.current_cond] if self.current_cond else [])
+                expr = stmt[len('return'):].strip()
+                if expr.endswith(';'):
+                    expr = expr[:-1].strip()
+                vars_ = list(dict.fromkeys(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', expr)))
+                deps = [self.current_cond] if self.current_cond else vars_
+                self.add_node(expr or 'return', deps)
             else:
                 self.add_node(stmt)
         return DFG(name, self.nodes)
 
     def build_from_src(self, name: str, src: str) -> DFG:
-        start = src.find('{') + 1
+        start_body = src.find('{')
+        header = src[:start_body]
         end = src.rfind('}')
-        body = src[start:end]
+        body = src[start_body + 1:end]
         pattern = r'(?:if\s*\([^\)]+\)\s*\{?|else\s*\{?|case[^:]*:|default:|[^;{}]+;)'
         stmts = [part.strip() for part in re.findall(pattern, body)]
-        return self.build(name, stmts)
+
+        # Extract parameter names from the method header
+        params = []
+        if '(' in header and ')' in header:
+            param_list = header[header.find('(') + 1: header.rfind(')')]
+            for p in param_list.split(','):
+                p = p.strip()
+                if not p:
+                    continue
+                m = re.search(r'([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[\])*$', p)
+                if m:
+                    params.append(m.group(1))
+
+        return self.build(name, stmts, params)
 
     def build_from_file(self, name: str, filepath: str) -> DFG:
         with open(filepath, 'r') as src_file:
