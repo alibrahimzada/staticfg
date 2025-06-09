@@ -217,7 +217,7 @@ class CFGBuilder:
         body = node.child_by_field_name('body')
         groups = [c for c in body.named_children if c.type == 'switch_block_statement_group']
         dispatch = self.current_block
-        for group in groups:
+        for i, group in enumerate(groups):
             case_block = self.new_block()
             label = None
             for child in group.named_children:
@@ -226,8 +226,12 @@ class CFGBuilder:
                 else:
                     break
             self.add_exit(dispatch, case_block, label)
-            next_dispatch = self.new_block()
-            self.add_exit(dispatch, next_dispatch)
+            if i < len(groups) - 1:
+                next_dispatch = self.new_block()
+                self.add_exit(dispatch, next_dispatch)
+            else:
+                next_dispatch = after_switch
+                self.add_exit(dispatch, after_switch)
             self.current_block = case_block
             for child in group.named_children:
                 if child.type != 'switch_label':

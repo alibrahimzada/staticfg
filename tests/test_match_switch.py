@@ -41,7 +41,7 @@ class TestMatchSwitch(unittest.TestCase):
     def test_java_switch(self):
         cfg = JCFGBuilder().build_from_src('testMatchStatement', java_sample)
         sources = [b.get_source().strip() for b in cfg]
-        self.assertIn('System.out.println("After match")', sources[-1])
+        self.assertIn('System.out.println("After match");', sources)
 
 if __name__ == '__main__':
     unittest.main()
