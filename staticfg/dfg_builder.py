@@ -1,5 +1,5 @@
 import ast
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 class _VarVisitor(ast.NodeVisitor):
@@ -22,17 +22,24 @@ def _var_occurrences(node: ast.AST) -> List[Tuple[str, int]]:
     visitor.visit(node)
     return visitor.occurrences
 
+def _stmt_occurrences(stmt: ast.AST) -> List[Tuple[str, int]]:
+    """Return occurrences for a single statement without descending into child statements."""
+    if isinstance(stmt, ast.If):
+        return _var_occurrences(stmt.test)
+    return _var_occurrences(stmt)
+
 
 class DFGBuilder:
     """Simple data flow path builder for Python CFGs."""
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, start_occurrences=None):
         self.cfg = cfg
+        self.start_occurrences = start_occurrences or []
 
     def _block_occurrences(self, block) -> List[Tuple[str, int]]:
         occs: List[Tuple[str, int]] = []
         for stmt in block.statements:
-            occs.extend(_var_occurrences(stmt))
+            occs.extend(_stmt_occurrences(stmt))
         return occs
 
     def _dfs(self, block, path, visited, results):
@@ -48,12 +55,18 @@ class DFGBuilder:
 
     def build_paths(self) -> List[List[Tuple[str, int]]]:
         results: List[List[Tuple[str, int]]] = []
-        self._dfs(self.cfg.entryblock, [], set(), results)
-        return results
+        self._dfs(self.cfg.entryblock, list(self.start_occurrences), set(), results)
+        unique = []
+        for p in results:
+            if p not in unique:
+                unique.append(p)
+        return unique
 
-    def write_paths(self, filepath: str):
+    def write_paths(self, filepath: str, mode: str = 'w', header: Optional[str] = None):
         paths = self.build_paths()
-        with open(filepath, 'w') as f:
+        with open(filepath, mode) as f:
+            if header:
+                f.write(f"{header}\n")
             for idx, path in enumerate(paths, 1):
                 parts = [f"({name}, {lineno})" for name, lineno in path]
                 f.write(f"Path {idx}: " + " -> ".join(parts) + "\n")
