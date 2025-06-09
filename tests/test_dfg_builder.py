@@ -39,7 +39,7 @@ class TestDFGBuilder(unittest.TestCase):
             path = tmp.name
         dfg = DFGBuilder().build_from_file("foo", path)
         os.unlink(path)
-        self.assertEqual(len(dfg.nodes), 4)
+        self.assertEqual(len(dfg.nodes), 5)
 
     def test_java_dfg(self):
         dfg = JDFGBuilder().build_from_src("foo", sample_java)

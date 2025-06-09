@@ -72,7 +72,9 @@ class DFGBuilder(ast.NodeVisitor):
         for s in node.body:
             self.visit(s)
         if node.orelse:
-            self.current_cond = f"not ({cond})"
+            neg = f"not ({cond})"
+            self.add_node(neg, self.get_vars(node.test))
+            self.current_cond = neg
             for s in node.orelse:
                 self.visit(s)
         self.current_cond = prev_cond
