@@ -62,7 +62,46 @@ class CFGBuilder:
     def build_from_file(self, name, filepath):
         with open(filepath, 'r') as src_file:
             src = src_file.read()
-        return self.build_from_src(name, src)
+        cfg = self.build_from_src(name, src)
+        # Extract and write data flow paths
+        self._write_dfg(name, src, cfg)
+        return cfg
+        
+    def _write_dfg(self, name, src, cfg):
+        """Helper to compute and write data flow paths for Java methods."""
+        try:
+            from .dfg_builder import DFGBuilder
+            
+            # Extract method parameters from source
+            params = []
+            param_names = []
+            
+            # Simple regex to find parameters in Java method declaration
+            import re
+            method_pattern = r'(public\s+static\s+\w+\s+\w+)\s*\((.*?)\)'
+            match = re.search(method_pattern, src)
+            
+            if match:
+                param_str = match.group(2)
+                # Parse parameters like "int x, int y"
+                param_parts = param_str.split(',')
+                for part in param_parts:
+                    part = part.strip()
+                    if part:
+                        # Extract just the parameter name (not the type)
+                        param_name = part.split()[-1]
+                        # Estimate line number as 1 for parameters
+                        params.append((param_name, 1))
+                        param_names.append(param_name)
+            
+            # Create DFG builder and write paths
+            dfg = DFGBuilder(cfg, params, names=None)
+            dfg.write_paths(f"{name}_dfg.txt", header=f"Method {name}")
+            
+        except Exception as e:
+            # Silently fail if there's an error
+            print(f"DFG generation failed: {e}")
+            pass
 
     def build(self, name, tree, src):
         self.src = src

@@ -164,8 +164,8 @@ class CFGBuilder(ast.NodeVisitor):
                     sub_cfg = cfg.functioncfgs.get(node.name)
                     if sub_cfg:
                         params = [(arg.arg, arg.lineno) for arg in node.args.args]
-                        param_names = [p[0] for p in params]
-                        func_dfg = DFGBuilder(sub_cfg, params, names=param_names)
+                        # Don't restrict to parameter names to include all variables like sum_
+                        func_dfg = DFGBuilder(sub_cfg, params, names=None)
                         func_dfg.write_paths(
                             f"{name}_dfg.txt", mode='a', header=f"Function {node.name}"
                         )
