@@ -58,7 +58,8 @@ class DFGBuilder:
                     self.add_node(neg, vars_)
                     self.current_cond = neg
                 else:
-                    self.current_cond = None            elif stmt.startswith('return'):
+                    self.current_cond = None
+            elif stmt.startswith('return'):
                 self.add_node(stmt, [self.current_cond] if self.current_cond else [])
             else:
                 self.add_node(stmt)
