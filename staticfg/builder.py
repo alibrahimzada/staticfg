@@ -142,7 +142,15 @@ class CFGBuilder(ast.NodeVisitor):
         """
         with open(filepath, 'r') as src_file:
             src = src_file.read()
-            return self.build_from_src(name, src)
+        cfg = self.build_from_src(name, src)
+        # Automatically compute data flow paths and write them alongside the CFG
+        try:
+            from .dfg_builder import DFGBuilder
+            dfg = DFGBuilder(cfg)
+            dfg.write_paths(f"{name}_dfg.txt")
+        except Exception:
+            pass
+        return cfg
 
     # ---------- Graph management methods ---------- #
     def new_block(self):
