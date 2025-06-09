@@ -1,9 +1,20 @@
-"""Basic Python data flow graph builder."""
+"""Basic Python data flow graph builder.
+
+This version follows a more structured approach inspired by the
+``CFGBuilder`` implementation.  A Python function is first parsed into an
+AST, a symbol table is created using :mod:`symtable` and then a simple
+data flow analysis is performed while visiting the AST.  The resulting
+``DFG`` can be visualised using :mod:`graphviz` just like the control
+flow graphs.
+"""
 
 import ast
+import symtable
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
+
 import graphviz as gv
+from .builder import CFGBuilder
 
 @dataclass
 class DFGNode:
@@ -32,10 +43,15 @@ class DFG:
 
 
 class DFGBuilder(ast.NodeVisitor):
+    """Build a simple data flow graph for a Python function."""
+
     def __init__(self):
+        # Collected :class:`DFGNode` objects.
         self.nodes: List[DFGNode] = []
-        # Track the condition currently in scope (e.g. from if/loop statements)
-        self.current_cond = None
+        # Track the condition currently in scope (e.g. from if/loop statements).
+        self.current_cond: Optional[str] = None
+        self.symtable = None
+        self.cfg = None
 
     def add_node(self, name: str, deps=None):
         self.nodes.append(DFGNode(name, deps or []))
@@ -45,15 +61,38 @@ class DFGBuilder(ast.NodeVisitor):
         names = [n.id for n in ast.walk(node) if isinstance(n, ast.Name)]
         return list(dict.fromkeys(names))
 
-    def build(self, name: str, tree: ast.AST) -> DFG:
+    # ------------------------------------------------------------------
+    # Build helpers
+    # ------------------------------------------------------------------
+    def parse(self, src: str) -> ast.AST:
+        """Parse ``src`` and return its AST."""
+        return ast.parse(src)
+
+    def build_symbol_table(self, src: str) -> None:
+        """Create a symbol table for ``src`` using :mod:`symtable`."""
+        try:
+            self.symtable = symtable.symtable(src, "dfg", "exec")
+        except SyntaxError:
+            self.symtable = None
+
+    def build_cfg(self, name: str, tree: ast.AST) -> None:
+        """Build a CFG from ``tree`` to help with ordering of statements."""
+        self.cfg = CFGBuilder().build(name, tree)
+
+    def build(self, name: str, tree: ast.AST, src: str = "") -> DFG:
+        """Build a :class:`DFG` from ``tree``."""
         self.nodes = []
         self.current_cond = None
+        if src:
+            self.build_symbol_table(src)
+        self.build_cfg(name, tree)
         self.visit(tree)
         return DFG(name, self.nodes)
 
     def build_from_src(self, name: str, src: str) -> DFG:
-        tree = ast.parse(src)
-        return self.build(name, tree)
+        """Build a :class:`DFG` from a source string."""
+        tree = self.parse(src)
+        return self.build(name, tree, src)
 
     def build_from_file(self, name: str, filepath: str) -> DFG:
         with open(filepath, "r") as src_file:
