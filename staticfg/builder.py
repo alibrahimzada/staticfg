@@ -156,8 +156,11 @@ class CFGBuilder(ast.NodeVisitor):
                     sub_cfg = cfg.functioncfgs.get(node.name)
                     if sub_cfg:
                         params = [(arg.arg, arg.lineno) for arg in node.args.args]
-                        dfg = DFGBuilder(sub_cfg, params)
-                        dfg.write_paths(f"{name}_dfg.txt", mode='a', header=f"Function {node.name}")
+                        param_names = [p[0] for p in params]
+                        dfg = DFGBuilder(sub_cfg, params, names=param_names)
+                        dfg.write_paths(
+                            f"{name}_dfg.txt", mode='a', header=f"Function {node.name}"
+                        )
         except Exception:
             pass
         return cfg
