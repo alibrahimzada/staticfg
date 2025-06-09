@@ -12,6 +12,15 @@ def foo(x):
         return "Non"
 """
 
+sample_python_loop = """
+def count_down(x):
+    total = 0
+    while x > 0:
+        total += x
+        x -= 1
+    return total
+"""
+
 sample_java = """
 public static String foo(int x) {
     if (x > 0) {
@@ -19,6 +28,17 @@ public static String foo(int x) {
     } else {
         return "Non";
     }
+}
+"""
+
+sample_java_loop = """
+public static int countDown(int x) {
+    int total = 0;
+    while (x > 0) {
+        total += x;
+        x--;
+    }
+    return total;
 }
 """
 
@@ -41,14 +61,26 @@ class TestDFGBuilder(unittest.TestCase):
         os.unlink(path)
         self.assertEqual(len(dfg.nodes), 5)
 
+    def test_python_loop(self):
+        dfg = DFGBuilder().build_from_src("count_down", sample_python_loop)
+        names = [n.name for n in dfg.nodes]
+        self.assertIn("x > 0", names)
+        self.assertIn("total", names)
+
     def test_java_dfg(self):
         dfg = JDFGBuilder().build_from_src("foo", sample_java)
         names = [n.name for n in dfg.nodes]
         self.assertIn("x", names)
-        self.assertIn("x > 0", names)
-        self.assertIn('"Positive"', names)
+        self.assertIn("if (x > 0) {", names)
+        self.assertIn('return "Positive"', names)
         graph = dfg._build_visual(format="dot")
         self.assertIn("digraph", graph.source)
+
+    def test_java_loop(self):
+        dfg = JDFGBuilder().build_from_src("countDown", sample_java_loop)
+        names = [n.name for n in dfg.nodes]
+        self.assertIn("while (x > 0) {", names)
+        self.assertIn("int total = 0", names)
 
 
 if __name__ == "__main__":

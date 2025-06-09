@@ -34,6 +34,7 @@ class DFG:
 class DFGBuilder(ast.NodeVisitor):
     def __init__(self):
         self.nodes: List[DFGNode] = []
+        # Track the condition currently in scope (e.g. from if/loop statements)
         self.current_cond = None
 
     def add_node(self, name: str, deps=None):
@@ -85,6 +86,70 @@ class DFGBuilder(ast.NodeVisitor):
         expr = ast.unparse(node.value).strip()
         deps = [self.current_cond] if self.current_cond else self.get_vars(node.value)
         self.add_node(expr, deps)
+
+    def visit_Expr(self, node):
+        expr = ast.unparse(node.value).strip()
+        deps = self.get_vars(node.value)
+        if self.current_cond:
+            deps.append(self.current_cond)
+        self.add_node(expr, deps)
+
+    def visit_Assign(self, node):
+        deps = self.get_vars(node.value)
+        if self.current_cond:
+            deps.append(self.current_cond)
+        for target in node.targets:
+            name = ast.unparse(target).strip()
+            self.add_node(name, deps)
+        self.generic_visit(node.value)
+
+    def visit_AugAssign(self, node):
+        deps = self.get_vars(node.value) + self.get_vars(node.target)
+        if self.current_cond:
+            deps.append(self.current_cond)
+        name = ast.unparse(node.target).strip()
+        self.add_node(name, deps)
+        self.generic_visit(node.value)
+
+    visit_AnnAssign = visit_Assign
+
+    def visit_While(self, node):
+        cond = ast.unparse(node.test).strip()
+        self.add_node(cond, self.get_vars(node.test))
+        prev_cond = self.current_cond
+        self.current_cond = cond
+        for s in node.body:
+            self.visit(s)
+        if node.orelse:
+            neg = f"not ({cond})"
+            self.add_node(neg, self.get_vars(node.test))
+            self.current_cond = neg
+            for s in node.orelse:
+                self.visit(s)
+        self.current_cond = prev_cond
+
+    def visit_For(self, node):
+        iter_expr = ast.unparse(node.iter).strip()
+        target_text = ast.unparse(node.target).strip()
+        cond = f"for {target_text} in {iter_expr}"
+        self.add_node(cond, self.get_vars(node.iter))
+        prev_cond = self.current_cond
+        self.current_cond = cond
+        # assignment of iteration variable
+        deps = self.get_vars(node.iter)
+        if self.current_cond:
+            deps.append(self.current_cond)
+        self.add_node(target_text, deps)
+        for s in node.body:
+            self.visit(s)
+        if node.orelse:
+            neg = f"not ({cond})"
+            self.add_node(neg, self.get_vars(node.iter))
+            self.current_cond = neg
+            for s in node.orelse:
+                self.visit(s)
+        self.current_cond = prev_cond
+
 
     def generic_visit(self, node):
         super().generic_visit(node)
