@@ -52,13 +52,13 @@ class DFGBuilder:
             stmt = stmt.strip()
             if stmt.startswith('if') and '(' in stmt:
                 cond = stmt[stmt.find('(') + 1: stmt.rfind(')')]
-                vars_ = re.findall(r'[A-Za-z_][A-Za-z0-9_]*', cond)
+                vars_ = list(dict.fromkeys(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', cond)))
                 self.add_node(cond, vars_)
                 self.current_cond = cond
             elif stmt.startswith('else'):
                 if self.current_cond:
                     neg = f'not ({self.current_cond})'
-                    vars_ = re.findall(r'[A-Za-z_][A-Za-z0-9_]*', self.current_cond)
+                    vars_ = list(dict.fromkeys(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', self.current_cond)))
                     self.add_node(neg, vars_)
                     self.current_cond = neg
                 else:
@@ -67,7 +67,7 @@ class DFGBuilder:
                 expr = stmt[len('return'):].strip()
                 if expr.endswith(';'):
                     expr = expr[:-1].strip()
-                vars_ = re.findall(r'[A-Za-z_][A-Za-z0-9_]*', expr)
+                vars_ = list(dict.fromkeys(re.findall(r'[A-Za-z_][A-Za-z0-9_]*', expr)))
                 deps = [self.current_cond] if self.current_cond else vars_
                 self.add_node(expr or 'return', deps)
             else:

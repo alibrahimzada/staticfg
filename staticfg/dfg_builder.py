@@ -40,7 +40,9 @@ class DFGBuilder(ast.NodeVisitor):
         self.nodes.append(DFGNode(name, deps or []))
 
     def get_vars(self, node):
-        return [n.id for n in ast.walk(node) if isinstance(n, ast.Name)]
+        # Collect variable names referenced in ``node`` without duplicates
+        names = [n.id for n in ast.walk(node) if isinstance(n, ast.Name)]
+        return list(dict.fromkeys(names))
 
     def build(self, name: str, tree: ast.AST) -> DFG:
         self.nodes = []
