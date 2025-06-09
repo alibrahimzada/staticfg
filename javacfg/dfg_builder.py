@@ -1,9 +1,19 @@
-"""Basic Java data flow graph builder."""
+"""Basic Java data flow graph builder.
+
+As with the Python implementation the source is first parsed using the
+available parser from ``tree_sitter_languages`` (if present).  The
+control flow of the method is obtained with :class:`javacfg.builder.CFGBuilder`
+so that statements are analysed in execution order.  From there a very
+lightweight data flow analysis extracts variable definitions and their
+dependencies which are finally represented as a :class:`DFG`.
+"""
 
 import re
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
+
 import graphviz as gv
+from .builder import CFGBuilder
 
 try:
     from tree_sitter_languages import get_parser
@@ -39,10 +49,13 @@ class DFG:
 
 
 class DFGBuilder:
+    """Construct a simple data flow graph for a Java method."""
+
     def __init__(self):
         self.nodes: List[DFGNode] = []
-        self.current_cond = None
-        # Use the same parser as the CFG builder if available
+        self.current_cond: Optional[str] = None
+        self.cfg = None
+        # Reuse the parser used by :class:`CFGBuilder` when available.
         if get_parser is not None:
             try:
                 self.parser = get_parser("java")
@@ -61,6 +74,39 @@ class DFGBuilder:
     def get_text(self, node):
         return node.text.decode()
 
+    # ------------------------------------------------------------------
+    # Build helpers
+    # ------------------------------------------------------------------
+    def parse(self, src: str):
+        if self.parser is not None:
+            return self.parser.parse(bytes(src, "utf8"))
+        return self._fake_parse(re.findall(r"[^\n]+", src))
+
+    def build_cfg(self, name: str, tree, src: str) -> None:
+        self.cfg = CFGBuilder().build(name, tree, src)
+
+    def build(self, name: str, tree, src: str, params: List[str] = None) -> DFG:
+        self.nodes = []
+        self.current_cond = None
+        if params:
+            for p in params:
+                self.add_node(p)
+
+        self.build_cfg(name, tree, src)
+        root = tree.root_node
+        method = None
+        for child in root.named_children:
+            if child.type == "method_declaration":
+                method = child
+                break
+
+        body = method.child_by_field_name("body") if method else root
+        if body.type == "block":
+            self.visit_block(body)
+        else:
+            self.visit(body)
+        return DFG(name, self.nodes)
+
     # ----- tree-sitter traversal helpers -----
     def visit(self, node):
         method = getattr(self, f"visit_{node.type}", None)
@@ -78,7 +124,7 @@ class DFGBuilder:
             self.visit(child)
 
     def visit_expression_statement(self, node):
-        text = self.get_text(node)
+        text = self.get_text(node).strip()
         expr = text.rstrip(';')
         deps = self.get_vars(expr)
         if self.current_cond:
@@ -88,7 +134,7 @@ class DFGBuilder:
     visit_local_variable_declaration = visit_expression_statement
 
     def visit_return_statement(self, node):
-        text = self.get_text(node)
+        text = self.get_text(node).strip()
         expr = text[len('return'):].strip().rstrip(';')
         vars_ = self.get_vars(expr)
         deps = [self.current_cond] if self.current_cond else vars_
@@ -96,7 +142,7 @@ class DFGBuilder:
 
     def visit_if_statement(self, node):
         cond = node.child_by_field_name('condition')
-        cond_text = self.get_text(cond)
+        cond_text = self.get_text(cond).strip()
         self.add_node(cond_text, self.get_vars(cond_text))
         prev = self.current_cond
         self.current_cond = cond_text
@@ -118,7 +164,7 @@ class DFGBuilder:
 
     def visit_while_statement(self, node):
         cond = node.child_by_field_name('condition')
-        cond_text = self.get_text(cond)
+        cond_text = self.get_text(cond).strip()
         self.add_node(cond_text, self.get_vars(cond_text))
         prev = self.current_cond
         self.current_cond = cond_text
@@ -131,7 +177,7 @@ class DFGBuilder:
 
     def visit_for_statement(self, node):
         cond = node.child_by_field_name('condition')
-        cond_text = self.get_text(cond) if cond else 'for'
+        cond_text = self.get_text(cond).strip() if cond else 'for'
         self.add_node(cond_text, self.get_vars(cond_text))
         prev = self.current_cond
         self.current_cond = cond_text
@@ -165,32 +211,11 @@ class DFGBuilder:
     # ------------------------------------------------------------------
     # tree-sitter based implementation
     # ------------------------------------------------------------------
-    def build(self, name: str, tree, src: str, params: List[str] = None) -> DFG:
-        self.nodes = []
-        self.current_cond = None
-        if params:
-            for p in params:
-                self.add_node(p)
-
-        self.src = src
-        root = tree.root_node
-        method = None
-        for child in root.named_children:
-            if child.type == "method_declaration":
-                method = child
-                break
-
-        body = method.child_by_field_name("body") if method else root
-        if body.type == "block":
-            self.visit_block(body)
-        else:
-            self.visit(body)
-        return DFG(name, self.nodes)
 
     def build_from_src(self, name: str, src: str) -> DFG:
+        tree = self.parse(src)
+        params = []
         if self.parser is not None:
-            tree = self.parser.parse(bytes(src, "utf8"))
-            params = []
             root = tree.root_node
             method = None
             for child in root.named_children:
@@ -205,28 +230,19 @@ class DFGBuilder:
                             name_node = c.child_by_field_name("name")
                             if name_node is not None:
                                 params.append(self.get_text(name_node))
-            return self.build(name, tree, src, params)
+        else:
+            start_body = src.find("{")
+            header = src[:start_body]
+            if "(" in header and ")" in header:
+                param_list = header[header.find("(") + 1 : header.rfind(")")]
+                for p in param_list.split(','):
+                    p = p.strip()
+                    if not p:
+                        continue
+                    m = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[\])*$", p)
+                    if m:
+                        params.append(m.group(1))
 
-        # Fallback to regex-based splitting when parser is unavailable
-        start_body = src.find("{")
-        header = src[:start_body]
-        end = src.rfind("}")
-        body = src[start_body + 1:end]
-        pattern = r"(?:if\s*\([^\)]+\)\s*\{?|else\s*\{?|while\s*\([^\)]+\)\s*\{?|for\s*\([^\)]+\)\s*\{?|case[^:]*:|default:|[^;{}]+;)"
-        stmts = [part.strip() for part in re.findall(pattern, body)]
-
-        params = []
-        if "(" in header and ")" in header:
-            param_list = header[header.find("(") + 1 : header.rfind(")")]
-            for p in param_list.split(','):
-                p = p.strip()
-                if not p:
-                    continue
-                m = re.search(r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[\])*$", p)
-                if m:
-                    params.append(m.group(1))
-
-        tree = self._fake_parse(stmts)
         return self.build(name, tree, src, params)
 
     def build_from_file(self, name: str, filepath: str) -> DFG:
