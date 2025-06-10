@@ -123,7 +123,8 @@ class DFGBuilder:
         def process_function(fn: ast.FunctionDef) -> None:
             param_names = [arg.arg for arg in fn.args.args]
             params[fn.name] = (fn.lineno, param_names)
-            var_sets[fn.name] = collect_defined(fn)
+            defined = collect_defined(fn)
+            var_sets[fn.name] = list(dict.fromkeys(param_names + defined))
             for child in fn.body:
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     process_function(child)
