@@ -114,7 +114,7 @@ class CFGBuilder(ast.NodeVisitor):
         self.clean_cfg(self.cfg.entryblock)
         return self.cfg
 
-    def build_from_src(self, name, src, write_dfg=True):
+    def build_from_src(self, name, src):
         """
         Build a CFG from some Python source code.
 
@@ -127,8 +127,6 @@ class CFGBuilder(ast.NodeVisitor):
         """
         tree = ast.parse(src, mode='exec')
         cfg = self.build(name, tree)
-        if write_dfg:
-            self._write_dfg(name, src, cfg)
         return cfg
 
     def build_from_file(self, name, filepath):
@@ -145,32 +143,8 @@ class CFGBuilder(ast.NodeVisitor):
         """
         with open(filepath, 'r') as src_file:
             src = src_file.read()
-        cfg = self.build_from_src(name, src, write_dfg=False)
-        self._write_dfg(name, src, cfg)
+        cfg = self.build_from_src(name, src)
         return cfg
-
-    def _write_dfg(self, name, src, cfg):
-        """Helper to compute and write data flow paths for a module and its
-        functions."""
-        try:
-            from .dfg_builder import DFGBuilder
-            tree = ast.parse(src, mode='exec')
-
-            dfg = DFGBuilder(cfg)
-            dfg.write_paths(f"{name}_dfg.txt")
-
-            for node in tree.body:
-                if isinstance(node, ast.FunctionDef):
-                    sub_cfg = cfg.functioncfgs.get(node.name)
-                    if sub_cfg:
-                        params = [(arg.arg, arg.lineno) for arg in node.args.args]
-                        # Don't restrict to parameter names to include all variables like sum_
-                        func_dfg = DFGBuilder(sub_cfg, params, names=None)
-                        func_dfg.write_paths(
-                            f"{name}_dfg.txt", mode='a', header=f"Function {node.name}"
-                        )
-        except Exception:
-            pass
 
     # ---------- Graph management methods ---------- #
     def new_block(self):
