@@ -7,7 +7,8 @@ fallback parser is used so that tests relying on basic functionality still run.
 """
 from .model import Block, Link, CFG
 try:
-    from tree_sitter_languages import get_parser
+    from tree_sitter import Language, Parser
+    import tree_sitter_java as tsjava
 except Exception:  # pragma: no cover - optional dependency
     get_parser = None
 
@@ -22,12 +23,11 @@ class CFGBuilder:
         self.src = ""
         # ``tree_sitter_languages`` may not be installed or compatible.  Try to
         # obtain a parser and fall back to None on failure.
-        if get_parser is not None:
-            try:
-                self.parser = get_parser('java')
-            except Exception:  # pragma: no cover - handled in tests
-                self.parser = None
-        else:  # pragma: no cover - optional dependency missing
+        
+        try:
+            LANGUAGE = Language(tsjava.language())
+            self.parser = Parser(LANGUAGE)
+        except Exception:  # pragma: no cover - handled in tests
             self.parser = None
 
     # Graph management
