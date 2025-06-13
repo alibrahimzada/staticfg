@@ -19,6 +19,15 @@ class DataFlowAnalyzer:
         self.variable_defs.clear()
         self.variable_uses.clear()
 
+        # Remove duplicates from variables list while preserving order
+        unique_variables = []
+        seen = set()
+        for var in variables:
+            if var not in seen:
+                unique_variables.append(var)
+                seen.add(var)
+        variables = unique_variables
+
         # Add parameter definitions at Node 0 if parameters exist
         if parameters:
             for param in parameters:
@@ -42,33 +51,39 @@ class DataFlowAnalyzer:
                     or stmt.startswith("return ")
                     or stmt.startswith("print(")
                 ):
-
                     # But check for variable uses in conditions and expressions
                     for var in variables:
                         if re.search(rf"\b{var}\b", stmt):
                             # Check if it's in a condition or expression (not a definition)
                             if not re.match(rf"^{var}\s*=", stmt):
-                                self.variable_uses[var].append((remapped_node_id, stmt))
+                                # Avoid duplicates
+                                if (remapped_node_id, stmt) not in self.variable_uses[var]:
+                                    self.variable_uses[var].append((remapped_node_id, stmt))
                     continue
 
                 # Find variable definitions and uses
                 for var in variables:
                     # Check for direct assignment (definition)
                     if re.match(rf"^(?:\w+\s+)?{var}\s*=\s*", stmt):
-                        self.variable_defs[var].append((remapped_node_id, stmt))
+                        if (remapped_node_id, stmt) not in self.variable_defs[var]:
+                            self.variable_defs[var].append((remapped_node_id, stmt))
 
                     # Check for compound assignment (both def and use)
                     elif re.match(rf"^{var}\s*[+\-*/]=", stmt):
-                        self.variable_defs[var].append((remapped_node_id, stmt))
-                        self.variable_uses[var].append((remapped_node_id, stmt))
+                        if (remapped_node_id, stmt) not in self.variable_defs[var]:
+                            self.variable_defs[var].append((remapped_node_id, stmt))
+                        if (remapped_node_id, stmt) not in self.variable_uses[var]:
+                            self.variable_uses[var].append((remapped_node_id, stmt))
 
                     # Check for uses in right-hand side of assignments
                     elif "=" in stmt and re.search(rf"\b{var}\b", stmt.split("=", 1)[1]):
-                        self.variable_uses[var].append((remapped_node_id, stmt))
+                        if (remapped_node_id, stmt) not in self.variable_uses[var]:
+                            self.variable_uses[var].append((remapped_node_id, stmt))
 
                     # Check for other uses (function calls, expressions, etc.)
                     elif re.search(rf"\b{var}\b", stmt) and not re.match(rf"^{var}\s*=", stmt):
-                        self.variable_uses[var].append((remapped_node_id, stmt))
+                        if (remapped_node_id, stmt) not in self.variable_uses[var]:
+                            self.variable_uses[var].append((remapped_node_id, stmt))
 
     def find_paths_between_nodes(self, start_node, end_node, remapped_succs, max_depth=20):
         """Find all paths from start_node to end_node using BFS with remapped node IDs"""
@@ -105,7 +120,15 @@ class DataFlowAnalyzer:
         """Extract data flow paths for each variable using remapped node IDs"""
         results = {}
 
+        # Remove duplicates from variables list
+        unique_variables = []
+        seen = set()
         for var in variables:
+            if var not in seen:
+                unique_variables.append(var)
+                seen.add(var)
+
+        for var in unique_variables:
             results[var] = []
             defs = self.variable_defs[var]
             uses = self.variable_uses[var]
@@ -116,14 +139,28 @@ class DataFlowAnalyzer:
                     if def_node != use_node:  # Don't include same-node def-use
                         paths = self.find_paths_between_nodes(def_node, use_node, remapped_succs)
                         for path in paths:
-                            results[var].append(
-                                {"def": (def_node, def_stmt), "use": (use_node, use_stmt), "path": path}
-                            )
+                            # Avoid duplicate paths
+                            path_info = {
+                                "def": (def_node, def_stmt), 
+                                "use": (use_node, use_stmt), 
+                                "path": path
+                            }
+                            if path_info not in results[var]:
+                                results[var].append(path_info)
 
         return results
 
     def print_dataflow_analysis(self, variables, succs, mapping, nodes, parameters=None, entry_orig=None):
         """Print data flow analysis results"""
+        # Remove duplicates from variables list
+        unique_variables = []
+        seen = set()
+        for var in variables:
+            if var not in seen:
+                unique_variables.append(var)
+                seen.add(var)
+        variables = unique_variables
+
         # Create remapped successors dict using new node IDs
         remapped_succs = {}
         for orig_node, successors in succs.items():
